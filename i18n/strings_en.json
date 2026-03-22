@@ -31,5 +31,10 @@
   "BT_DISCONNECTED": "Bluetooth Disconnected",
   "STREAMING_FROM": "Streaming audio from",
   "NO_BT_ADAPTER": "No Bluetooth adapter detected",
-  "SERVICE_START_FAILED": "Failed to start Bluetooth audio service"
+  "SERVICE_START_FAILED": "Failed to start Bluetooth audio service",
+  "LATENCY_MODE": "Latency Mode",
+  "LATENCY_MODE_DOC": "Lower latency improves audio-video sync but may cause audio glitches on slow hardware",
+  "LATENCY_LOW": "Low (recommended for TV/video)",
+  "LATENCY_MEDIUM": "Medium (balanced)",
+  "LATENCY_HIGH": "High (maximum stability)"
 }

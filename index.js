@@ -36,6 +36,7 @@ ControllerBluetoothInput.prototype.onStart = function () {
 
   var deviceName = self.config.get('deviceName') || 'Volumio';
   var discoverable = self.config.get('discoverable') !== false;
+  var latencyMode = self.config.get('latencyMode') || 'low';
   var outputDevice = self._resolveAlsaDevice(
     self.commandRouter.sharedVars.get('alsa.outputdevice')
   );
@@ -50,7 +51,7 @@ ControllerBluetoothInput.prototype.onStart = function () {
 
       return self.btManager.initialize(deviceName, discoverable)
         .then(function () {
-          return self.audioService.start(outputDevice);
+          return self.audioService.start(outputDevice, latencyMode);
         })
         .then(function () {
           return self._startAgentService();
@@ -138,6 +139,15 @@ ControllerBluetoothInput.prototype.getUIConfig = function () {
       uiconf.sections[0].content[1].value = self.config.get('discoverable') !== false;
       uiconf.sections[0].content[2].value = self.config.get('autoAccept') !== false;
 
+      var currentLatency = self.config.get('latencyMode') || 'low';
+      var latencyOptions = uiconf.sections[0].content[3].options;
+      for (var i = 0; i < latencyOptions.length; i++) {
+        if (latencyOptions[i].value === currentLatency) {
+          uiconf.sections[0].content[3].value = latencyOptions[i];
+          break;
+        }
+      }
+
       // Paired devices - populate dynamically
       if (self.btManager) {
         return self.btManager.getPairedDevices().then(function (devices) {
@@ -203,6 +213,13 @@ ControllerBluetoothInput.prototype.saveSettings = function (data) {
   }
   if (data.autoAccept !== undefined) {
     self.config.set('autoAccept', data.autoAccept);
+  }
+  if (data.latencyMode !== undefined) {
+    var latVal = data.latencyMode.value || data.latencyMode;
+    self.config.set('latencyMode', latVal);
+    if (self.audioService) {
+      self.audioService.setLatencyMode(latVal);
+    }
   }
 
   if (self.btManager) {

@@ -18,5 +18,9 @@
   "pairedDevices": {
     "type": "string",
     "value": "[]"
+  },
+  "latencyMode": {
+    "type": "string",
+    "value": "low"
   }
 }

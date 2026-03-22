@@ -18,7 +18,8 @@
         "data": [
           "deviceName",
           "discoverable",
-          "autoAccept"
+          "autoAccept",
+          "latencyMode"
         ]
       },
       "content": [
@@ -43,6 +44,18 @@
           "doc": "TRANSLATE.AUTO_ACCEPT_DOC",
           "label": "TRANSLATE.AUTO_ACCEPT",
           "value": true
+        },
+        {
+          "id": "latencyMode",
+          "element": "select",
+          "doc": "TRANSLATE.LATENCY_MODE_DOC",
+          "label": "TRANSLATE.LATENCY_MODE",
+          "value": {"value": "low", "label": "TRANSLATE.LATENCY_LOW"},
+          "options": [
+            {"value": "low", "label": "TRANSLATE.LATENCY_LOW"},
+            {"value": "medium", "label": "TRANSLATE.LATENCY_MEDIUM"},
+            {"value": "high", "label": "TRANSLATE.LATENCY_HIGH"}
+          ]
         }
       ]
     },
