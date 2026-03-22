@@ -299,6 +299,8 @@ ControllerBluetoothInput.prototype._registerCallbacks = function () {
       self.commandRouter.pushToastMessage('info', self._t('BT_CONNECTED'),
         self._t('STREAMING_FROM') + ' ' + device.name);
 
+      self._enterVolatileMode(device);
+
       if (self.audioService) {
         self.audioService.startAplay(device.mac);
       }
@@ -310,6 +312,11 @@ ControllerBluetoothInput.prototype._registerCallbacks = function () {
 
       if (self.audioService) {
         self.audioService.stopAplay(device.mac);
+      }
+
+      var streams = self.audioService ? self.audioService.getRunningStreams() : {};
+      if (Object.keys(streams).length === 0) {
+        self._exitVolatileMode();
       }
     });
   }
@@ -350,6 +357,65 @@ ControllerBluetoothInput.prototype._resolveAlsaDevice = function (value) {
   // with bluealsa-aplay; log a warning
   this.logger.info('ControllerBluetoothInput::using named ALSA device: ' + str);
   return str;
+};
+
+// --- Volatile mode (take over Volumio's audio output) ---
+
+ControllerBluetoothInput.prototype._enterVolatileMode = function (device) {
+  var self = this;
+
+  // Stop current Volumio playback so MPD releases the ALSA device
+  self.commandRouter.volumioStop();
+
+  // Tell Volumio we're taking over — puts the UI in "volatile" mode
+  self.commandRouter.stateMachine.setVolatile({
+    service: 'bluetooth_input',
+    callback: self._onVolatileStopped.bind(self)
+  });
+
+  // Push a state so the Volumio UI shows the BT source
+  self.commandRouter.stateMachine.syncState({
+    status: 'play',
+    service: 'bluetooth_input',
+    title: device.name || 'Bluetooth',
+    artist: '',
+    album: 'Bluetooth Audio',
+    albumart: '/albumart?sourceicon=music_service/bluetooth_input/bt.svg',
+    uri: '',
+    trackType: 'bluetooth',
+    seek: 0,
+    duration: 0,
+    samplerate: '',
+    bitdepth: '',
+    channels: '',
+    random: false,
+    repeat: false,
+    repeatSingle: false,
+    disableUiControls: true
+  }, 'bluetooth_input');
+};
+
+ControllerBluetoothInput.prototype._exitVolatileMode = function () {
+  var self = this;
+  try {
+    self.commandRouter.stateMachine.unSetVolatile();
+  } catch (e) {
+    self.logger.error('ControllerBluetoothInput::_exitVolatileMode error: ' + e);
+  }
+};
+
+ControllerBluetoothInput.prototype._onVolatileStopped = function () {
+  var self = this;
+  self.logger.info('ControllerBluetoothInput::volatile stop requested');
+
+  // Volumio wants to resume normal playback — stop all BT audio streams
+  if (self.audioService) {
+    var streams = self.audioService.getRunningStreams();
+    var macs = Object.keys(streams);
+    macs.forEach(function (mac) {
+      self.audioService.stopAplay(mac);
+    });
+  }
 };
 
 // --- Agent service ---
