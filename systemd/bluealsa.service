@@ -1,0 +1,15 @@
+[Unit]
+Description=BluezAlsa proxy
+Requires=bluetooth.service
+After=bluetooth.service
+
+[Service]
+Type=simple
+User=root
+Group=audio
+ExecStart=/usr/bin/bluealsa -p a2dp-source -p a2dp-sink
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

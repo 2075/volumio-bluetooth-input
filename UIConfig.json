@@ -1,0 +1,80 @@
+{
+  "page": {
+    "label": "TRANSLATE.PLUGIN_NAME"
+  },
+  "sections": [
+    {
+      "id": "section_general",
+      "element": "section",
+      "label": "TRANSLATE.GENERAL_SETTINGS",
+      "icon": "fa-cog",
+      "onSave": {
+        "type": "controller",
+        "endpoint": "audio_interface/bluetooth_input",
+        "method": "saveSettings"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.SAVE",
+        "data": [
+          "deviceName",
+          "discoverable",
+          "autoAccept"
+        ]
+      },
+      "content": [
+        {
+          "id": "deviceName",
+          "type": "text",
+          "element": "input",
+          "doc": "TRANSLATE.DEVICE_NAME_DOC",
+          "label": "TRANSLATE.DEVICE_NAME",
+          "value": "Volumio"
+        },
+        {
+          "id": "discoverable",
+          "element": "switch",
+          "doc": "TRANSLATE.DISCOVERABLE_DOC",
+          "label": "TRANSLATE.DISCOVERABLE",
+          "value": true
+        },
+        {
+          "id": "autoAccept",
+          "element": "switch",
+          "doc": "TRANSLATE.AUTO_ACCEPT_DOC",
+          "label": "TRANSLATE.AUTO_ACCEPT",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "section_paired",
+      "element": "section",
+      "label": "TRANSLATE.PAIRED_DEVICES",
+      "icon": "fa-bluetooth-b",
+      "content": []
+    },
+    {
+      "id": "section_scan",
+      "element": "section",
+      "label": "TRANSLATE.SCAN_SECTION",
+      "icon": "fa-search",
+      "content": [
+        {
+          "id": "scan_button",
+          "element": "button",
+          "label": "TRANSLATE.SCAN_BUTTON",
+          "doc": "TRANSLATE.SCAN_DOC",
+          "onClick": {
+            "type": "emit",
+            "message": "callMethod",
+            "data": {
+              "endpoint": "audio_interface/bluetooth_input",
+              "method": "scanForDevices",
+              "data": ""
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

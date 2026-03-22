@@ -1,0 +1,22 @@
+{
+  "enabled": {
+    "type": "boolean",
+    "value": true
+  },
+  "discoverable": {
+    "type": "boolean",
+    "value": true
+  },
+  "deviceName": {
+    "type": "string",
+    "value": "Volumio"
+  },
+  "autoAccept": {
+    "type": "boolean",
+    "value": true
+  },
+  "pairedDevices": {
+    "type": "string",
+    "value": "[]"
+  }
+}
