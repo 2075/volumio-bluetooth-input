@@ -36,7 +36,9 @@ ControllerBluetoothInput.prototype.onStart = function () {
 
   var deviceName = self.config.get('deviceName') || 'Volumio';
   var discoverable = self.config.get('discoverable') !== false;
-  var outputDevice = self.commandRouter.sharedVars.get('alsa.outputdevice') || 'softvolume';
+  var outputDevice = self._resolveAlsaDevice(
+    self.commandRouter.sharedVars.get('alsa.outputdevice')
+  );
 
   self.btManager.isAdapterPresent()
     .then(function (present) {
@@ -49,6 +51,9 @@ ControllerBluetoothInput.prototype.onStart = function () {
       return self.btManager.initialize(deviceName, discoverable)
         .then(function () {
           return self.audioService.start(outputDevice);
+        })
+        .then(function () {
+          return self._startAgentService();
         })
         .then(function () {
           self._registerCallbacks();
@@ -72,6 +77,10 @@ ControllerBluetoothInput.prototype.onStop = function () {
   self._unregisterCallbacks();
 
   var chain = Promise.resolve();
+
+  chain = chain.then(function () {
+    return self._stopAgentService();
+  });
 
   if (self.audioService) {
     chain = chain.then(function () {
@@ -315,12 +324,60 @@ ControllerBluetoothInput.prototype._unregisterCallbacks = function () {
 
 ControllerBluetoothInput.prototype.onOutputDeviceChanged = function () {
   var self = this;
-  var newDevice = self.commandRouter.sharedVars.get('alsa.outputdevice') || 'softvolume';
-  self.logger.info('ControllerBluetoothInput::output device changed to ' + newDevice);
+  var raw = self.commandRouter.sharedVars.get('alsa.outputdevice');
+  var resolved = self._resolveAlsaDevice(raw);
+  self.logger.info('ControllerBluetoothInput::output device changed: ' + raw + ' -> ' + resolved);
 
   if (self.audioService) {
-    self.audioService.setOutputDevice(newDevice);
+    self.audioService.setOutputDevice(resolved);
   }
+};
+
+ControllerBluetoothInput.prototype._resolveAlsaDevice = function (value) {
+  if (!value && value !== 0) {
+    return 'plughw:0,0';
+  }
+  var str = String(value).trim();
+  // Already a full ALSA device name (e.g. "hw:1,0", "plughw:2,0", "softvolume")
+  if (str.indexOf(':') !== -1) {
+    return str;
+  }
+  // Pure number = Volumio card index, wrap in plughw for format conversion
+  if (/^\d+$/.test(str)) {
+    return 'plughw:' + str + ',0';
+  }
+  // Named device like "softvolume" -- try it as-is, but it may not work
+  // with bluealsa-aplay; log a warning
+  this.logger.info('ControllerBluetoothInput::using named ALSA device: ' + str);
+  return str;
+};
+
+// --- Agent service ---
+
+ControllerBluetoothInput.prototype._startAgentService = function () {
+  var self = this;
+  var exec = require('child_process').exec;
+  return new Promise(function (resolve) {
+    exec('sudo systemctl restart bt-agent.service', { timeout: 10000 }, function (error) {
+      if (error) {
+        self.logger.error('ControllerBluetoothInput::bt-agent start failed: ' + error);
+      }
+      resolve();
+    });
+  });
+};
+
+ControllerBluetoothInput.prototype._stopAgentService = function () {
+  var self = this;
+  var exec = require('child_process').exec;
+  return new Promise(function (resolve) {
+    exec('sudo systemctl stop bt-agent.service', { timeout: 10000 }, function (error) {
+      if (error) {
+        self.logger.error('ControllerBluetoothInput::bt-agent stop failed: ' + error);
+      }
+      resolve();
+    });
+  });
 };
 
 // --- Helpers ---

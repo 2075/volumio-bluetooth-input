@@ -2,6 +2,8 @@
 echo "Uninstalling Bluetooth Audio Input"
 
 echo "Stopping services..."
+sudo systemctl stop bt-agent.service 2>/dev/null
+sudo systemctl disable bt-agent.service 2>/dev/null
 sudo systemctl stop bluealsa.service 2>/dev/null
 sudo systemctl disable bluealsa.service 2>/dev/null
 
@@ -13,6 +15,7 @@ done
 echo "Removing systemd units..."
 sudo rm -f /lib/systemd/system/bluealsa.service
 sudo rm -f /lib/systemd/system/bluealsa-aplay@.service
+sudo rm -f /lib/systemd/system/bt-agent.service
 sudo rm -rf /etc/systemd/system/bluealsa-aplay@*.service.d
 
 echo "Removing UDEV rule..."

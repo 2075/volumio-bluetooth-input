@@ -48,13 +48,16 @@ fi
 echo "Deploying systemd service units..."
 sudo cp "${PLUGIN_DIR}/systemd/bluealsa.service" /lib/systemd/system/bluealsa.service
 sudo cp "${PLUGIN_DIR}/systemd/bluealsa-aplay@.service" /lib/systemd/system/bluealsa-aplay@.service
+sudo cp "${PLUGIN_DIR}/systemd/bt-agent.service" /lib/systemd/system/bt-agent.service
 
 INSTALL_DIR="/data/plugins/audio_interface/bluetooth_input"
 
-echo "Deploying autoconnect script..."
+echo "Deploying scripts..."
 sudo mkdir -p "${INSTALL_DIR}/scripts"
 sudo cp "${PLUGIN_DIR}/scripts/a2dpAutoconnect.sh" "${INSTALL_DIR}/scripts/a2dpAutoconnect.sh"
+sudo cp "${PLUGIN_DIR}/scripts/btAgent.sh" "${INSTALL_DIR}/scripts/btAgent.sh"
 sudo chmod 755 "${INSTALL_DIR}/scripts/a2dpAutoconnect.sh"
+sudo chmod 755 "${INSTALL_DIR}/scripts/btAgent.sh"
 
 echo "Deploying UDEV rule..."
 sudo tee /etc/udev/rules.d/99-bluetooth-input.rules > /dev/null <<EOF
@@ -62,21 +65,28 @@ KERNEL=="input[0-9]*", RUN+="${INSTALL_DIR}/scripts/a2dpAutoconnect.sh"
 EOF
 
 echo "Configuring Bluetooth subsystem..."
-if [ -f /etc/bluetooth/main.conf ]; then
-  if ! grep -q "Class = 0x200428" /etc/bluetooth/main.conf; then
-    sudo sed -i '/^\[General\]/a Class = 0x200428' /etc/bluetooth/main.conf
-  fi
-else
-  sudo mkdir -p /etc/bluetooth
-  sudo tee /etc/bluetooth/main.conf > /dev/null <<EOF
-[General]
-Class = 0x200428
-EOF
+sudo mkdir -p /etc/bluetooth
+
+# Build the [General] settings block for headless A2DP sink
+BT_MAIN="/etc/bluetooth/main.conf"
+if [ ! -f "$BT_MAIN" ] || ! grep -q '^\[General\]' "$BT_MAIN"; then
+  echo -e "\n[General]" | sudo tee -a "$BT_MAIN" > /dev/null
 fi
+for setting in \
+  "Class = 0x200428" \
+  "DiscoverableTimeout = 0" \
+  "PairableTimeout = 0" \
+  "AutoEnable=true"; do
+  key=$(echo "$setting" | cut -d= -f1 | sed 's/ //g')
+  if ! grep -q "^${key}" "$BT_MAIN" 2>/dev/null; then
+    sudo sed -i "/^\[General\]/a ${setting}" "$BT_MAIN"
+  fi
+done
 
 echo "Reloading systemd and udev..."
 sudo systemctl daemon-reload
 sudo systemctl enable bluealsa.service
+sudo systemctl enable bt-agent.service
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 

@@ -1,0 +1,13 @@
+[Unit]
+Description=Bluetooth NoInputNoOutput pairing agent
+Requires=bluetooth.service
+After=bluetooth.service
+
+[Service]
+Type=simple
+ExecStart=/data/plugins/audio_interface/bluetooth_input/scripts/btAgent.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -7,7 +7,7 @@ After=bluealsa.service
 Type=simple
 User=volumio
 Group=audio
-ExecStart=/usr/bin/bluealsa-aplay %I -D softvolume
+ExecStart=/usr/bin/bluealsa-aplay %I -D plughw:0,0
 Restart=on-failure
 RestartSec=3
 
