@@ -172,11 +172,32 @@ ControllerBluetoothInput.prototype.getUIConfig = function () {
             });
           } else {
             knownDevices.forEach(function (device) {
+              var safeMac = device.mac.replace(/:/g, '');
+              var deviceLabel = device.name + ' (' + device.mac + ')';
+
+              // Connect button — primary action: reconnect and take over audio
               pairedSection.content.push({
-                id: 'remove_' + device.mac.replace(/:/g, ''),
+                id: 'connect_' + safeMac,
                 element: 'button',
-                label: device.name + ' (' + device.mac + ')',
-                doc: '',
+                label: self._t('CONNECT') + ': ' + deviceLabel,
+                doc: self._t('CONNECT_DOC'),
+                onClick: {
+                  type: 'emit',
+                  message: 'callMethod',
+                  data: {
+                    endpoint: 'audio_interface/bluetooth_input',
+                    method: 'connectDevice',
+                    data: { mac: device.mac, name: device.name }
+                  }
+                }
+              });
+
+              // Remove button — destructive action, requires confirmation
+              pairedSection.content.push({
+                id: 'remove_' + safeMac,
+                element: 'button',
+                label: self._t('REMOVE') + ': ' + deviceLabel,
+                doc: self._t('REMOVE_DOC'),
                 onClick: {
                   type: 'emit',
                   message: 'callMethod',
@@ -187,7 +208,7 @@ ControllerBluetoothInput.prototype.getUIConfig = function () {
                   },
                   askForConfirm: {
                     title: self._t('REMOVE_CONFIRM_TITLE'),
-                    message: self._t('REMOVE_CONFIRM_MESSAGE')
+                    message: self._t('REMOVE_CONFIRM_MESSAGE') + ' ' + deviceLabel + '?'
                   }
                 }
               });
@@ -319,6 +340,29 @@ ControllerBluetoothInput.prototype.pairDevice = function (data) {
       self.commandRouter.pushToastMessage('error', 'Bluetooth Audio Input',
         self._t('PAIR_FAILED') + ': ' + (data.name || data.mac));
     });
+};
+
+ControllerBluetoothInput.prototype.connectDevice = function (data) {
+  var self = this;
+
+  if (!self.btManager || !data || !data.mac) {
+    return libQ.resolve();
+  }
+
+  self.commandRouter.pushToastMessage('info', 'Bluetooth Audio Input',
+    self._t('CONNECTING') + ' ' + (data.name || data.mac));
+
+  // The connect command is sent via the persistent monitor process.
+  // When BlueZ confirms the connection, the 'deviceConnected' event fires
+  // and automatically enters volatile mode + starts aplay.
+  self.btManager.connectDevice(data.mac)
+    .catch(function (err) {
+      self.logger.error('ControllerBluetoothInput::connectDevice error: ' + err);
+      self.commandRouter.pushToastMessage('error', 'Bluetooth Audio Input',
+        self._t('CONNECT_FAILED') + ': ' + (data.name || data.mac));
+    });
+
+  return libQ.resolve();
 };
 
 ControllerBluetoothInput.prototype.removeDevice = function (data) {
