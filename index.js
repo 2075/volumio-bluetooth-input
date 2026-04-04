@@ -171,16 +171,28 @@ ControllerBluetoothInput.prototype.getUIConfig = function () {
               onClick: { type: 'emit', message: '', data: '' }
             });
           } else {
-            knownDevices.forEach(function (device) {
-              var safeMac = device.mac.replace(/:/g, '');
-              var deviceLabel = device.name + ' (' + device.mac + ')';
+            var connectedMacs = self.btManager ? self.btManager.connectedDevices : {};
 
-              // Connect button — primary action: reconnect and take over audio
+            knownDevices.forEach(function (device) {
+              var safeMac    = device.mac.replace(/:/g, '');
+              var isConnected = !!connectedMacs[device.mac];
+
+              // 🟢 = formally paired (bonded key exchange)
+              // 🔴 = trusted-only (connected via "Just Works" without full bond)
+              var dot = device.isPaired ? '\uD83D\uDFE2' : '\uD83D\uDD34';  // 🟢 / 🔴
+
+              // Device info row — clicking it connects the device
+              var infoLabel = dot + '  ' + device.name;
+              var infoDoc   = device.mac;
+              if (isConnected) {
+                infoDoc += '  \u25CF  ' + self._t('CONNECTED');  // ● Connected
+              }
+
               pairedSection.content.push({
                 id: 'connect_' + safeMac,
                 element: 'button',
-                label: self._t('CONNECT') + ': ' + deviceLabel,
-                doc: self._t('CONNECT_DOC'),
+                label: infoLabel,
+                doc: infoDoc,
                 onClick: {
                   type: 'emit',
                   message: 'callMethod',
@@ -192,26 +204,28 @@ ControllerBluetoothInput.prototype.getUIConfig = function () {
                 }
               });
 
-              // Remove button — destructive action, requires confirmation
-              pairedSection.content.push({
-                id: 'remove_' + safeMac,
-                element: 'button',
-                label: self._t('REMOVE') + ': ' + deviceLabel,
-                doc: self._t('REMOVE_DOC'),
-                onClick: {
-                  type: 'emit',
-                  message: 'callMethod',
-                  data: {
-                    endpoint: 'audio_interface/bluetooth_input',
-                    method: 'removeDevice',
-                    data: { mac: device.mac, name: device.name }
-                  },
-                  askForConfirm: {
-                    title: self._t('REMOVE_CONFIRM_TITLE'),
-                    message: self._t('REMOVE_CONFIRM_MESSAGE') + ' ' + deviceLabel + '?'
+              // Remove button — only for formally paired devices
+              if (device.isPaired) {
+                pairedSection.content.push({
+                  id: 'remove_' + safeMac,
+                  element: 'button',
+                  label: self._t('REMOVE') + '  ' + device.name,
+                  doc: self._t('REMOVE_DOC'),
+                  onClick: {
+                    type: 'emit',
+                    message: 'callMethod',
+                    data: {
+                      endpoint: 'audio_interface/bluetooth_input',
+                      method: 'removeDevice',
+                      data: { mac: device.mac, name: device.name }
+                    },
+                    askForConfirm: {
+                      title: self._t('REMOVE_CONFIRM_TITLE'),
+                      message: self._t('REMOVE_CONFIRM_MESSAGE') + '\n' + device.name + ' (' + device.mac + ')'
+                    }
                   }
-                }
-              });
+                });
+              }
             });
           }
 

@@ -33,6 +33,7 @@
   "REMOVE_SUCCESS": "Device Removed",
   "REMOVE_FAILED": "Remove Failed",
   "SETTINGS_SAVED": "Settings Saved",
+  "CONNECTED": "Connected",
   "BT_CONNECTED": "Bluetooth Connected",
   "BT_DISCONNECTED": "Bluetooth Disconnected",
   "STREAMING_FROM": "Streaming audio from",
