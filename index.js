@@ -60,6 +60,13 @@ ControllerBluetoothInput.prototype.onStart = function () {
           self._registerCallbacks();
           self.logger.info('ControllerBluetoothInput started');
           defer.resolve();
+
+          // Attempt to reconnect trusted devices after BlueZ has fully settled
+          setTimeout(function () {
+            if (self.btManager) {
+              self.btManager.reconnectTrusted();
+            }
+          }, 8000);
         });
     })
     .catch(function (err) {
@@ -316,6 +323,9 @@ ControllerBluetoothInput.prototype._registerCallbacks = function () {
       self.commandRouter.pushToastMessage('info', self._t('BT_CONNECTED'),
         self._t('STREAMING_FROM') + ' ' + device.name);
 
+      // New connection always clears the suppress flag — user intent is clear
+      self._suppressAutoResume = false;
+
       self._enterVolatileMode(device);
 
       if (self.audioService) {
@@ -331,16 +341,21 @@ ControllerBluetoothInput.prototype._registerCallbacks = function () {
         self.audioService.stopAplay(device.mac);
       }
 
-      var streams = self.audioService ? self.audioService.getRunningStreams() : {};
-      if (Object.keys(streams).length === 0) {
+      var connectedDevices = self.btManager ? self.btManager.getConnectedDevices() : [];
+      if (connectedDevices.length === 0) {
         self._exitVolatileMode();
+        // No devices left; clear suppress so next reconnect auto-resumes freely
+        self._suppressAutoResume = false;
       }
     });
   }
+
+  self._startSourceWatcher();
 };
 
 ControllerBluetoothInput.prototype._unregisterCallbacks = function () {
   var self = this;
+  self._stopSourceWatcher();
   if (self.btManager) {
     self.btManager.removeAllListeners();
   }
@@ -423,15 +438,99 @@ ControllerBluetoothInput.prototype._exitVolatileMode = function () {
 
 ControllerBluetoothInput.prototype._onVolatileStopped = function () {
   var self = this;
-  self.logger.info('ControllerBluetoothInput::volatile stop requested');
+  self.logger.info('ControllerBluetoothInput::volatile stop requested by user');
 
-  // Volumio wants to resume normal playback — stop all BT audio streams
+  // User explicitly started Volumio playback — stop BT audio and stand aside.
+  // Suppress auto-resume for 30 s so the watcher doesn't immediately re-take volatile.
+  self._suppressAutoResume = true;
+  if (self._suppressTimer) clearTimeout(self._suppressTimer);
+  self._suppressTimer = setTimeout(function () {
+    self._suppressAutoResume = false;
+  }, 30000);
+
   if (self.audioService) {
     var streams = self.audioService.getRunningStreams();
-    var macs = Object.keys(streams);
-    macs.forEach(function (mac) {
+    Object.keys(streams).forEach(function (mac) {
       self.audioService.stopAplay(mac);
     });
+  }
+};
+
+// --- Source watcher ---
+//
+// Shairport (and other volatile services) call stateMachine.setVolatile() which silently
+// overwrites our callback — we get no notification. The watcher polls every 4 s and:
+//   • Re-enters volatile + restarts aplay when a BT device is connected and Volumio is idle
+//   • Stops aplay while another volatile source holds the ALSA device
+//   • Does NOT interrupt Volumio if the user explicitly started playback (_suppressAutoResume)
+
+ControllerBluetoothInput.prototype._startSourceWatcher = function () {
+  var self = this;
+  self._stopSourceWatcher();
+
+  self._sourceWatchInterval = setInterval(function () {
+    if (!self.btManager || !self.audioService) return;
+
+    var connectedDevices = self.btManager.getConnectedDevices();
+    var sm = self.commandRouter.stateMachine;
+    var isOurVolatile = sm.isVolatile && sm.volatileService === 'bluetooth_input';
+    var anotherVolatileActive = sm.isVolatile && sm.volatileService !== 'bluetooth_input';
+    var activeStreams = self.audioService.getRunningStreams();
+
+    if (connectedDevices.length === 0) {
+      // No BT devices connected — exit volatile if we still hold it
+      if (isOurVolatile) {
+        self._exitVolatileMode();
+      }
+      return;
+    }
+
+    if (anotherVolatileActive) {
+      // Another source (e.g. Shairport) owns the ALSA device — stop our aplay to avoid
+      // ALSA conflicts but do NOT exit volatile; we will reclaim it when they release
+      Object.keys(activeStreams).forEach(function (mac) {
+        self.audioService.stopAplay(mac);
+      });
+      return;
+    }
+
+    // No volatile is active (MPD mode or truly idle)
+    if (!isOurVolatile && !self._suppressAutoResume) {
+      // Auto-resume only when Volumio is not actively playing something
+      var volumioStatus = sm.currentStatus;
+      if (volumioStatus !== 'play') {
+        self.logger.info('ControllerBluetoothInput::source watcher resuming BT stream');
+        var primary = connectedDevices[0];
+        self._enterVolatileMode(primary);
+        connectedDevices.forEach(function (device) {
+          if (!activeStreams[device.mac]) {
+            self.audioService.startAplay(device.mac);
+          }
+        });
+      }
+      return;
+    }
+
+    // We hold volatile — make sure aplay is running for all connected devices
+    if (isOurVolatile) {
+      connectedDevices.forEach(function (device) {
+        if (!activeStreams[device.mac]) {
+          self.logger.info('ControllerBluetoothInput::source watcher restarting aplay for ' + device.mac);
+          self.audioService.startAplay(device.mac);
+        }
+      });
+    }
+  }, 4000);
+};
+
+ControllerBluetoothInput.prototype._stopSourceWatcher = function () {
+  if (this._sourceWatchInterval) {
+    clearInterval(this._sourceWatchInterval);
+    this._sourceWatchInterval = null;
+  }
+  if (this._suppressTimer) {
+    clearTimeout(this._suppressTimer);
+    this._suppressTimer = null;
   }
 };
 
