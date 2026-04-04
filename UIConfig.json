@@ -25,10 +25,12 @@
       "content": [
         {
           "id": "deviceName",
-          "type": "text",
           "element": "input",
-          "doc": "TRANSLATE.DEVICE_NAME_DOC",
+          "type": "text",
           "label": "TRANSLATE.DEVICE_NAME",
+          "attributes": [
+            {"placeholder": "e.g. Volumio Hi-Fi"}
+          ],
           "value": "Volumio"
         },
         {
