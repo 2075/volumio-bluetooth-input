@@ -155,9 +155,9 @@ ControllerBluetoothInput.prototype.getUIConfig = function () {
         }
       }
 
-      // Paired devices - populate dynamically
+      // Paired/trusted devices - populate dynamically
       if (self.btManager) {
-        return self.btManager.getPairedDevices().then(function (devices) {
+        return self.btManager.getKnownDevices().then(function (devices) {
           var section = uiconf.sections[1];
           section.content = [];
 
