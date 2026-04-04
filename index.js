@@ -157,12 +157,13 @@ ControllerBluetoothInput.prototype.getUIConfig = function () {
 
       // Paired/trusted devices - populate dynamically
       if (self.btManager) {
-        return self.btManager.getKnownDevices().then(function (devices) {
-          var section = uiconf.sections[1];
-          section.content = [];
+        return self.btManager.getKnownDevices().then(function (knownDevices) {
+          // --- Section 1: known/paired devices ---
+          var pairedSection = uiconf.sections[1];
+          pairedSection.content = [];
 
-          if (devices.length === 0) {
-            section.content.push({
+          if (knownDevices.length === 0) {
+            pairedSection.content.push({
               id: 'no_devices',
               element: 'button',
               label: self._t('NO_PAIRED_DEVICES'),
@@ -170,8 +171,8 @@ ControllerBluetoothInput.prototype.getUIConfig = function () {
               onClick: { type: 'emit', message: '', data: '' }
             });
           } else {
-            devices.forEach(function (device) {
-              section.content.push({
+            knownDevices.forEach(function (device) {
+              pairedSection.content.push({
                 id: 'remove_' + device.mac.replace(/:/g, ''),
                 element: 'button',
                 label: device.name + ' (' + device.mac + ')',
@@ -192,6 +193,38 @@ ControllerBluetoothInput.prototype.getUIConfig = function () {
               });
             });
           }
+
+          // --- Section 2: scan results (devices not yet paired/trusted) ---
+          var scanSection = uiconf.sections[2];
+          // Always keep the Scan button as the first item (from UIConfig.json)
+          // then append discovered devices that aren't already known
+          var knownMacs = knownDevices.reduce(function (acc, d) {
+            acc[d.mac.toUpperCase()] = true;
+            return acc;
+          }, {});
+
+          var scanResults = self.lastScanResults || [];
+          var unpaired = scanResults.filter(function (d) {
+            return !knownMacs[d.mac.toUpperCase()];
+          });
+
+          unpaired.forEach(function (device) {
+            scanSection.content.push({
+              id: 'pair_' + device.mac.replace(/:/g, ''),
+              element: 'button',
+              label: device.name + ' (' + device.mac + ')',
+              doc: self._t('PAIR_DEVICE_DOC'),
+              onClick: {
+                type: 'emit',
+                message: 'callMethod',
+                data: {
+                  endpoint: 'audio_interface/bluetooth_input',
+                  method: 'pairDevice',
+                  data: { mac: device.mac, name: device.name }
+                }
+              }
+            });
+          });
 
           defer.resolve(uiconf);
         });
@@ -252,13 +285,15 @@ ControllerBluetoothInput.prototype.scanForDevices = function () {
 
   return self.btManager.startScan(10000)
     .then(function (devices) {
+      // Persist results so getUIConfig can render them as Pair buttons
+      self.lastScanResults = devices || [];
+
       if (devices.length === 0) {
         self.commandRouter.pushToastMessage('info', 'Bluetooth Audio Input', self._t('NO_DEVICES_FOUND'));
       } else {
         self.commandRouter.pushToastMessage('success', 'Bluetooth Audio Input',
           self._t('SCAN_COMPLETE') + ': ' + devices.length + ' ' + self._t('DEVICES_FOUND'));
       }
-      // Refresh the UI to show scan results
       self.commandRouter.getUIConfigOnPlugin('audio_interface', 'bluetooth_input', {});
     })
     .catch(function (err) {
